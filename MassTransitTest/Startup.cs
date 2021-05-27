@@ -28,19 +28,12 @@ namespace MassTransitTest
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-
             services.AddMassTransit(x =>
             {
                 x.AddDelayedMessageScheduler();
+                x.AddConsumer<Consumer>(typeof(ConsumerDefinition));
                 x.UsingRabbitMq((context, cfg) =>
                 {
-                    /*
-                    var observer = new ReceiveObserver();
-                    var pobserver = new SendObserver();
-                    cfg.ConnectReceiveObserver(observer);
-                    cfg.ConnectSendObserver(pobserver);
-                    */
-
                     cfg.ConfigureJsonSerializer(settings => { settings.DefaultValueHandling = DefaultValueHandling.Include; return settings; });
 
                     cfg.Host("localhost", "/", hst =>
@@ -51,42 +44,33 @@ namespace MassTransitTest
                     cfg.UseDelayedMessageScheduler();
                     cfg.ReceiveEndpoint("event-listener", e =>
                     {
-                        /*
-                        e.UseCircuitBreaker(cb =>
+                        e.UseKillSwitch(cb =>
                         {
-                            cb.TrackingPeriod = TimeSpan.FromMinutes(massTransitSettings.CircuitBreakerTrackingPeriodInMinutes);
-                            cb.TripThreshold = massTransitSettings.CircuitBreakerTripThreshold;
-                            cb.ActiveThreshold = massTransitSettings.CircuitBreakerActiveThreshold;
-                            cb.ResetInterval = TimeSpan.FromMinutes(massTransitSettings.CircuitBreakerResetIntervalInMinutes);
+                            cb.TrackingPeriod = TimeSpan.FromMinutes(1);
+                            cb.TripThreshold = 15;
+                            cb.ActivationThreshold = 10;
+                            cb.RestartTimeout = TimeSpan.FromMinutes(5);
                         });
-                        */
-                        e.UseDelayedRedelivery(r => r.Intervals(TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(20)));
+                        e.UseDelayedRedelivery(r => r.Intervals(
+                            TimeSpan.FromMinutes(1),
+                            TimeSpan.FromMinutes(5),
+                            TimeSpan.FromMinutes(10),
+                            TimeSpan.FromMinutes(15),
+                            TimeSpan.FromMinutes(20)));
                         e.UseMessageRetry(r =>
                         {
-                            r.Interval(1, TimeSpan.FromSeconds(5));
-                            // r.Handle<DataException>(x => x.Message.Contains("SQL"));
-                            // r.Ignore<ArgumentNullException>();
-                            // r.Incremental(2, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(6));
-
-                            // r.Handle<WebException>();
-                            // r.Handle<HttpRequestException>();
-                            // r.Handle<TimeoutException>();
-                            // r.Handle<RequestTimeoutException>();
+                            r.Interval(1, TimeSpan.FromSeconds(10));
+                            //r.Handle<WebException>();
+                            //r.Handle<HttpRequestException>();
+                            //r.Handle<TimeoutException>();
+                            //r.Handle<RequestTimeoutException>();
                         });
                         e.UseInMemoryOutbox();
-                        e.Batch<QueryObject>(b =>
-                        {
-                            b.MessageLimit = 20;
-                            b.ConcurrencyLimit = 10;
-                            b.TimeLimit = TimeSpan.FromSeconds(10);
-                            b.Consumer(() => new Consumer());
-                        });
+                        e.ConfigureConsumer<Consumer>(context);
                     });
                 });
             });
             services.AddMassTransitHostedService();
-
-
 
             services.AddControllers();
             services.AddSwaggerGen(c =>

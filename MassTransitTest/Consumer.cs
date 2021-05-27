@@ -1,19 +1,11 @@
 ﻿using MassTransit;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+using MassTransit.ConsumeConfigurators;
+using MassTransit.Definition;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
-using RabbitMQ.Client.Events;
 using Serilog;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace MassTransitTest
@@ -24,16 +16,43 @@ namespace MassTransitTest
 
     class Consumer : IConsumer<Batch<QueryObject>>
     {
+        private readonly ILogger<Consumer> _logger;
+        private readonly ISendEndpointProvider _sendEndpointProvider;
+
+        public Consumer(ILogger<Consumer> logger, ISendEndpointProvider sendEndpointProvider)
+        {
+            _logger = logger;
+            _sendEndpointProvider = sendEndpointProvider;
+        }
+
         public async Task Consume(ConsumeContext<Batch<QueryObject>> context)
         {
-            Log.Error($"received {context.Message.Length}");
-            //context.Defer(TimeSpan.FromMinutes(1));
-            throw new Exception("Very bad things happened");
-            //Log.Error($"sent {context.Message.Length}");
+            _logger.LogError($"received Length: {context.Message.Length}");
+            var List = new List<QueryObject>();
             for (int i = 0; i < context.Message.Length; i++)
             {
-                ConsumeContext<QueryObject> audit = context.Message[i]; // context.Message[0].Message
+                _logger.LogError($"received plate: {context.Message[0].Message}");
+                List.Add(context.Message[0].Message);
             }
+            _logger.LogError($"ProcessPostRequest done count: {List.Count}");
+        }
+    }
+
+    class ConsumerDefinition : ConsumerDefinition<Consumer>
+    {
+
+        public ConsumerDefinition()
+        {
+            Endpoint(x => x.PrefetchCount = 100);
+        }
+
+        protected override void ConfigureConsumer(IReceiveEndpointConfigurator endpointConfigurator,
+            IConsumerConfigurator<Consumer> consumerConfigurator)
+        {
+            consumerConfigurator.Options<BatchOptions>(options => options
+                .SetMessageLimit(5)
+                .SetConcurrencyLimit(5)
+                .SetTimeLimit(10));
         }
     }
 }

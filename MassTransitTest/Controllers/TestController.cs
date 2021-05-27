@@ -14,21 +14,19 @@ namespace MassTransitTest.Controllers
     public class TestController : ControllerBase
     {
         private readonly ILogger<TestController> _logger;
-        private readonly IBus _bus;
+        private readonly ISendEndpointProvider _sendEndpointProvider;
 
-        public TestController(ILogger<TestController> logger, IBus bus)
+        public TestController(ILogger<TestController> logger, ISendEndpointProvider sendEndpointProvider)
         {
             _logger = logger;
-            _bus = bus;
+            _sendEndpointProvider = sendEndpointProvider;
         }
 
         [HttpPost]
         public async Task Test(QueryObject queryObject)
         {
-            var endpoint = await _bus.GetSendEndpoint(new Uri("queue:event-listener"));
-
-            // Set CorrelationId using SendContext<T>
-            await endpoint.Send(queryObject);
+            var sendEndpoint = await _sendEndpointProvider.GetSendEndpoint(new Uri("queue:event-listener"));
+            await sendEndpoint.Send<QueryObject>(queryObject);
         }
     }
 }
