@@ -67,6 +67,7 @@ namespace MassTransitTest
                         });
                         e.UseInMemoryOutbox();
                         e.ConfigureConsumer<Consumer>(context);
+                        e.ConnectReceiveEndpointObserver(new ReceiveEndpointObserver());
                     });
                 });
             });
